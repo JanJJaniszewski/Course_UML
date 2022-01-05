@@ -50,7 +50,7 @@ y[y == 2] <- 1
 error <- 0.0001 # Stopping criterion for improvement of function
 m <- ncol(X) - 1 # Number of columns (excluding the constant column)
 w <- matrix(0.1, m, 1) # Initial weights
-lambda <- 0.1 # Lambda (parameter)
+lambda <- 15 # Lambda (parameter)
 constant <- 0 # Initial c
 v <- t(cbind(constant, t(w))) # [c, wT]
 
@@ -63,6 +63,7 @@ P[1,1] <- 0
 k <- 1
 l_svm_old <- 0
 l_svm <- 0
+
 while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   k = k+1
   # Assign previous run loss to old loss
@@ -81,11 +82,11 @@ while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   A <- diag(x=a %>% as.vector, n, n)
   
   # compute the new loss
-  l_svm <- sum(a * q^2) - 2 * sum(b * q) + sum(c) + lambda * crossprod(w)
+  l_svm <- sum(pmax(0, 1 - y * q)) + lambda * crossprod(w)
   
   # Update v
-  v <- (crossprod(X, A) %*% X + lambda * P)^(-1) %*% t(X) %*% b
-
+  v <- solve(t(X) %*% A %*% X + lambda * P, t(X) %*% b)
+  
   constant <- v[1]
   w <- v[2:length(v)]
   
