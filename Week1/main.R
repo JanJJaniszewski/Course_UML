@@ -1,80 +1,91 @@
-# Config
+#### Config ####
 set.seed(1)
 
-# Load packages
+#### Load packages ####
 library(pacman)
 p_load(tidyverse)
 p_load(SVMMaj)
 p_load(vtreat)
 
-# Load and prepare data
+#### Load and prepare data ####
 load('Week1/Data/bank.RData')
-n <- 1000
+
+# Take only a sample of n
+n <- 1000 
 bank <- bank[sample(nrow(bank), n), ]
 
+# dropping weird columns
 bank <- bank %>% select(-c(emp.var.rate, euribor3m))
 
+# Transform months to numbers
 bank$month <- factor(bank$month, levels = c("jan", "feb", 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'))
 bank$month <- bank$month %>% as.numeric
 
+# Transform education to numberic
 bank$education <- factor(bank$education, levels = c('illiterate', 'basic.4y', 'baic.6y', 'basic.9y', 'high.school', 'professional.course', 'university.degree'))
 bank$education <- bank$education %>% as.numeric
 
-
-
+# Transform data for modeling
 treatment <- designTreatmentsC(bank,
                                colnames(bank),
                                'y',
                                'yes', 
                                codeRestriction = c('clean', 'lev'))
-                               
 bank_prepared <-  prepare(treatment, bank)   
 
+# Scale X and add a column with 1's to X
 X <- bank_prepared %>% select(-y) %>% scale
-X <- cbind(1, X)
+X <- cbind(1, X) 
+
+# Set y to -1 and 1 for negative and positive cases
 y <- bank_prepared %>% pull(y) %>% as.numeric
 y[y == 1] <- -1
 y[y == 2] <- 1
 
 # Execute SVMMaj function on data
-svmmaj(X = X, y=y, hinge = 'absolute')
+# svmmaj(X = X, y=y, hinge = 'absolute')
 
-# Own SVM function
-error <- 0.1
-m <- ncol(X) - 1
-w <- matrix(0.1, m, 1)
-lambda <- 1
-constant <- 0
-v_T <- cbind(constant, t(w))
+#### Own SVM function ####
+# Initialize
+error <- 0.1 # Stopping criterion for improvement of function
+m <- ncol(X) - 1 # Number of columns (excluding the constant column)
+w <- matrix(0.1, m, 1) # Initial weights
+lambda <- 1 # Lambda (parameter)
+constant <- 0 # Initial c
+v <- t(cbind(constant, t(w))) # [c, wT]
+
+# P matrix
 P <- diag(1, m+1)
 P[1,1] <- 0
 
-# Loss
-l_svm <- 1
-l_svm_old <- -Inf
+# Initial losses
+l_svm <- 1 # New loss
+l_svm_old <- -Inf # Old loss
 
-# Majorization for later
+# Majorization step that can be precomputed already
 Z <- (crossprod(X) + lambda * P)^(-1) %*% t(X)
 
+# Entering while function
 while(((l_svm - l_svm_old) / l_svm) > error){
+  # Assign previous run loss to old loss
   l_svm_old <- l_svm
   
-  # Predictions
-  q <- X %*% t(v_T)
+  # Predict q
+  q <- X %*% v
   
-  # Absolute hinge computation
+  # Compute a, b, c, A using absolute hinge
   a <- (4 * abs(1 - y * q)) ^ (-1)
   b <- y*(a + 1/4)
   c <- a + 1/2 + abs(1 - y * q)/4
   A <- diag(x=a %>% as.vector, n, n)
   
-  # Loss computation
+  # compute the new loss
   l_svm <- sum(a * q^2) - 2 * sum(b * q) + sum(c) + lambda * crossprod(w)
   
-  # Updating v
+  # Update v
   v <- Z %*% b
-  constant <- v[1]
-  w <- v[2:length(v)]
+  constant <- t(v)[1]
+  w <- t(v)[2:length(v)]
   
   print(l_svm)
 }
