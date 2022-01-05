@@ -50,7 +50,7 @@ y[y == 2] <- 1
 error <- 0.0001 # Stopping criterion for improvement of function
 m <- ncol(X) - 1 # Number of columns (excluding the constant column)
 w <- matrix(0.1, m, 1) # Initial weights
-lambda <- 1 # Lambda (parameter)
+lambda <- 0.1 # Lambda (parameter)
 constant <- 0 # Initial c
 v <- t(cbind(constant, t(w))) # [c, wT]
 
@@ -58,9 +58,6 @@ v <- t(cbind(constant, t(w))) # [c, wT]
 P <- diag(1, m+1)
 P[1,1] <- 0
 
-
-# Majorization step that can be precomputed already
-Z <- (crossprod(X) + lambda * P)^(-1) %*% t(X)
 
 # Entering while function
 k <- 1
@@ -74,6 +71,9 @@ while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   # Predict q
   q <- X %*% v
   
+  q %>% head
+  y %>% head
+  
   # Compute a, b, c, A using absolute hinge
   a <- (4 * abs(1 - y * q)) ^ (-1)
   b <- y*(a + 1/4)
@@ -84,10 +84,12 @@ while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   l_svm <- sum(a * q^2) - 2 * sum(b * q) + sum(c) + lambda * crossprod(w)
   
   # Update v
-  v <- Z %*% b
+  v <- (crossprod(X, A) %*% X + lambda * P)^(-1) %*% t(X) %*% b
+
   constant <- v[1]
   w <- v[2:length(v)]
   
+  # Print update information
   print('---------------')
   print(k)
   print(l_svm[1,1])
