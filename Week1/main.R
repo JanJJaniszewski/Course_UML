@@ -47,7 +47,7 @@ y[y == 2] <- 1
 
 #### Own SVM function ####
 # Initialize
-error <- 0.1 # Stopping criterion for improvement of function
+error <- 0.0001 # Stopping criterion for improvement of function
 m <- ncol(X) - 1 # Number of columns (excluding the constant column)
 w <- matrix(0.1, m, 1) # Initial weights
 lambda <- 1 # Lambda (parameter)
@@ -58,15 +58,16 @@ v <- t(cbind(constant, t(w))) # [c, wT]
 P <- diag(1, m+1)
 P[1,1] <- 0
 
-# Initial losses
-l_svm <- 1 # New loss
-l_svm_old <- -Inf # Old loss
 
 # Majorization step that can be precomputed already
 Z <- (crossprod(X) + lambda * P)^(-1) %*% t(X)
 
 # Entering while function
-while(((l_svm - l_svm_old) / l_svm) > error){
+k <- 1
+l_svm_old <- 0
+l_svm <- 0
+while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
+  k = k+1
   # Assign previous run loss to old loss
   l_svm_old <- l_svm
   
@@ -84,8 +85,10 @@ while(((l_svm - l_svm_old) / l_svm) > error){
   
   # Update v
   v <- Z %*% b
-  constant <- t(v)[1]
-  w <- t(v)[2:length(v)]
+  constant <- v[1]
+  w <- v[2:length(v)]
   
-  print(l_svm)
+  print('---------------')
+  print(k)
+  print(l_svm[1,1])
 }
