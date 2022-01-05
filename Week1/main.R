@@ -50,7 +50,7 @@ y[y == 2] <- 1
 error <- 0.0001 # Stopping criterion for improvement of function
 m <- ncol(X) - 1 # Number of columns (excluding the constant column)
 w <- matrix(0.1, m, 1) # Initial weights
-lambda <- 15 # Lambda (parameter)
+lambda <- 4 # Lambda (parameter)
 constant <- 0 # Initial c
 v <- t(cbind(constant, t(w))) # [c, wT]
 
