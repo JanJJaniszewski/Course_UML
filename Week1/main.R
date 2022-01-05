@@ -9,7 +9,8 @@ p_load(vtreat)
 
 # Load and prepare data
 load('Week1/Data/bank.RData')
-bank <- bank[sample(nrow(bank), 1000), ]
+n <- 1000
+bank <- bank[sample(nrow(bank), n), ]
 
 bank <- bank %>% select(-c(emp.var.rate, euribor3m))
 
@@ -40,13 +41,40 @@ svmmaj(X = X, y=y, hinge = 'absolute')
 
 # Own SVM function
 error <- 0.1
-m <- ncol(X)
-w <- matrix(1.1, m, 1)
+m <- ncol(X) - 1
+w <- matrix(0.1, m, 1)
 lambda <- 1
-c <- 1
-v_T <- cbind(c, t(w))
+constant <- 0
+v_T <- cbind(constant, t(w))
+P <- diag(1, m+1)
+P[1,1] <- 0
 
-q <- X %*% t(v_T)
+# Loss
+l_svm <- 1
+l_svm_old <- -Inf
 
-l_svm <- sum(max(0, 1 - y*q)) + (lambda * crossprod(w))
+# Majorization for later
+Z <- (crossprod(X) + lambda * P)^(-1) %*% t(X)
 
+while(((l_svm - l_svm_old) / l_svm) > error){
+  l_svm_old <- l_svm
+  
+  # Predictions
+  q <- X %*% t(v_T)
+  
+  # Absolute hinge computation
+  a <- (4 * abs(1 - y * q)) ^ (-1)
+  b <- y*(a + 1/4)
+  c <- a + 1/2 + abs(1 - y * q)/4
+  A <- diag(x=a %>% as.vector, n, n)
+  
+  # Loss computation
+  l_svm <- sum(a * q^2) - 2 * sum(b * q) + sum(c) + lambda * crossprod(w)
+  
+  # Updating v
+  v <- Z %*% b
+  constant <- v[1]
+  w <- v[2:length(v)]
+  
+  print(l_svm)
+}
