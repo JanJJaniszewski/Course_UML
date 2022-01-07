@@ -42,8 +42,6 @@ y <- bank_prepared %>% pull(y) %>% as.numeric
 y[y == 1] <- -1
 y[y == 2] <- 1
 
-# Execute SVMMaj function on data
-# svmmaj(X = X, y=y, hinge = 'absolute')
 
 #### Own SVM function ####
 # Initialize
@@ -61,10 +59,10 @@ P[1,1] <- 0
 
 # Entering while function
 k <- 1
-l_svm_old <- 0
-l_svm <- 0
-
-while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
+l_svm <- sum(pmax(0, 1 - y * q)) + lambda * crossprod(w)
+l_svm_old <- l_svm + l_svm * error + 1
+  
+while(((l_svm_old - l_svm) / l_svm_old) > error){
   k = k+1
   # Assign previous run loss to old loss
   l_svm_old <- l_svm
@@ -76,7 +74,7 @@ while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   y %>% head
   
   # Compute a, b, c, A using absolute hinge
-  a <- (4 * abs(1 - y * q)) ^ (-1)
+  a <- pmax((4 * abs(1 - y * q)), 1e-4) ^ (-1)
   b <- y*(a + 1/4)
   c <- a + 1/2 + abs(1 - y * q)/4
   A <- diag(x=a %>% as.vector, n, n)
@@ -96,4 +94,5 @@ while((k <= 2) | ((l_svm_old - l_svm) / l_svm_old) > error){
   print(l_svm[1,1])
 }
 
-svmmaj(X, y)
+# Execute SVMMaj function on data
+svmmaj(X = X, y=y, hinge = 'absolute', lambda = lambda)
