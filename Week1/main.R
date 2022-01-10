@@ -79,7 +79,7 @@ absSVMLoss <- function(y, q, lambda, w){
 }
 
 absSVMParams <- function(y, q){
-  a <- pmax(4*abs(1 - y * q), 1e-4)^(-1)
+  a <- pmax(4*abs(1 - y * q), 0.0001)^(-1)
   b <- y*(a + 1/4)
   params <- list(a,b)
   names(params) <- c("a","b")
