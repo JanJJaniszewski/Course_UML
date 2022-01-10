@@ -232,33 +232,29 @@ resTable[4,2] <- F1Score(y.test, ifelse(X.test%*%resSVMMAJquad$beta > 0, 1, -1))
 resTable
 
 # Initializing results table 2
-resTable2 <- matrix(nrow = 4, ncol = 2)
-colnames(resTable2) <- c("Hit rate", "F1 score")
+resTable2 <- matrix(nrow = 4, ncol = 1)
+colnames(resTable2) <- c("Loss")
 rownames(resTable2) <- c("RBF abs hinge", "RBF quad hinge", 
                         "Poly abs hinge", "Poly quad hinge")
 
 # Fitting nonlinear SVM's
 resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                               kernel = rbfdot, kernel.sigma = 1)
-resTable2[1,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1)) 
-resTable2[1,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1))
+resTable2[1] <- resSVMRBFabs$loss 
 
 resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                               kernel = rbfdot, kernel.sigma = 1)
-resTable2[2,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1)) 
-resTable2[2,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1))
+resTable2[2] <- resSVMRBFquad$loss
 
-resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
+resSVMPolyabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                        kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                        kernel.offset = 1)
-resTable2[3,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1)) 
-resTable2[3,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1))
+resTable2[3] <- resSVMPolyabs$loss
 
-resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
+resSVMPolyquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                         kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                         kernel.offset = 1)
-resTable2[4,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1)) 
-resTable2[4,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1))
+resTable2[4] <- resSVMPolyquad$loss
 
 # Printing table with results
 resTable2
