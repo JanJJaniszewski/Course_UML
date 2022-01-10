@@ -1,6 +1,6 @@
 ################################################################# Load packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, SVMMaj, vtreat, kernlab)
+pacman::p_load(tidyverse, SVMMaj, vtreat, kernlab, caret)
 
 ######################################################### Load and prepare data 
 load('Week1/Data/bank.RData')
@@ -195,6 +195,7 @@ hitRate <- function(y, yhat){
   return(hitRate)
 }
 
+
 ############################################################# Computing results
 
 # Initializing params
@@ -230,6 +231,13 @@ resTable[4,2] <- F1Score(y.test, ifelse(X.test%*%resSVMMAJquad$beta > 0, 1, -1))
 
 # Printing table with results
 resTable
+
+# Confusion Matrix
+confusionMatrix(ifelse(X.test%*%resOwnSVMMAJabs > 0, 1, -1) %>% as.factor, y.test %>% as.factor)
+confusionMatrix(ifelse(X.test%*%resOwnSVMMAJquad > 0, 1, -1) %>% as.factor, y.test %>% as.factor)
+confusionMatrix(ifelse(X.test%*%resSVMMAJabs$beta > 0, 1, -1) %>% as.factor, y.test %>% as.factor)
+confusionMatrix(ifelse(X.test%*%resSVMMAJquad$beta > 0, 1, -1) %>% as.factor, y.test %>% as.factor)
+
 
 # Initializing results table 2
 resTable2 <- matrix(nrow = 4, ncol = 1)
