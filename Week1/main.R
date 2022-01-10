@@ -164,20 +164,17 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
 ############################################################# Computing results
 
 # Initializing params
+set.seed(42)
 eps <- 1e-15 # Stopping criterion for improvement of function
 lambda <- 15 # Lambda (parameter)
 
 # Fitting abs hinge
-set.seed(42)
 resSVMMAJabs <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'absolute')
-set.seed(42)
 resPackageSVMMAJabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute')
 resPackageSVMMAJabs$beta - resSVMMAJabs
 
 # Fitting quad hinge
-set.seed(42)
 resSVMMAJquad <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'quadratic')
-set.seed(42)
 resPackageSVMMAJquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic')
 
 
