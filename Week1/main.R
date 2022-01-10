@@ -1,11 +1,8 @@
-#### Config ####
-set.seed(1)
-
-#### Load packages ####
+################################################################# Load packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, SVMMaj, vtreat)
+pacman::p_load(tidyverse, SVMMaj, vtreat, kernlab)
 
-#### Load and prepare data ####
+######################################################### Load and prepare data 
 load('Week1/Data/bank.RData')
 
 # Take only a sample of n
@@ -26,7 +23,7 @@ bank$education <- factor(bank$education, levels = c('illiterate', 'basic.4y',
                                                     'basic.6y', 'basic.9y',
                                                     'high.school',
                                                     'professional.course',
-                                                    'university.degree')) # why discard unknown?
+                                                    'university.degree'))
 bank$education <- bank$education %>% as.numeric
 
 # Transform data for modeling
@@ -46,7 +43,7 @@ y <- bank_prepared %>% pull(y) %>% as.numeric
 y[y == 1] <- -1
 y[y == 2] <- 1
 
-#### Own SVM function ####
+##################################################### Defining own SVM function
 
 # Initializing loss, update and majorizing parameter functions based on hinge
 quadSVMLoss <- function(y, q, lambda, w){
@@ -85,13 +82,13 @@ absSVMUpdate <- function(X, A, lambda, P, b){
   return( solve(t(X) %*% A %*% X + lambda * P, t(X) %*% b) )
 }
 
-ownSVMMAJ <- function(y, X, lambda, eps, hinge, debug = FALSE){
+ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
   ####
   # Purpose :
   #   Fit an SVM with absolute or quadratic error for predicting y based on X.
   # Inputs  : 
-  #   y           vector of 1's and (-1)'s, treatment variable
   #   X           smth
+  #   y           vector of 1's and (-1)'s, treatment variable
   #   lambda      smth
   #   eps         smth
   #   hinge       smth
@@ -159,21 +156,46 @@ ownSVMMAJ <- function(y, X, lambda, eps, hinge, debug = FALSE){
     }
   }
   
-  output <- list(v, constant)
-  names(output) <- c("v","c")
-  return(output)
+  output <- list(w, constant)
+  names(output) <- c("w","c")
+  return(v)
 }
 
+############################################################# Computing results
+
 # Initializing params
-eps <- 0.0000001 # Stopping criterion for improvement of function
+eps <- 1e-15 # Stopping criterion for improvement of function
 lambda <- 15 # Lambda (parameter)
 
-# Executing own SVMMaj 
-resSVMMAJabs <- ownSVMMAJ(X = X, y=y, hinge = 'absolute', lambda = lambda, eps = eps)
-resSVMMAJquad <- ownSVMMAJ(X = X, y=y, hinge = 'quadratic', lambda = lambda, eps = eps)
+# Fitting abs hinge
+set.seed(42)
+resSVMMAJabs <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'absolute')
+set.seed(42)
+resPackageSVMMAJabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute')
+resPackageSVMMAJabs$beta - resSVMMAJabs
 
-# Executing package SVMMaj
-resPackageSVMMAJabs <- svmmaj(X = X, y=y, hinge = 'absolute', lambda = lambda)
-resPackageSVMMAJquad <- svmmaj(X = X, y=y, hinge = 'quadratic', lambda = lambda)
+# Fitting quad hinge
+set.seed(42)
+resSVMMAJquad <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'quadratic')
+set.seed(42)
+resPackageSVMMAJquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic')
+
+
+# Fitting nonlinear SVM's
+resSVMRBFabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute', 
+                              kernel = rbfdot, kernel.sigma = 1)
+
+resSVMRBFquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic', 
+                              kernel = rbfdot, kernel.sigma = 1)
+
+resSVMRBFabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute', 
+                       kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
+                       kernel.offset = 1)
+
+resSVMRBFquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic', 
+                        kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
+                        kernel.offset = 1)
+
+# Comparing results
 
 
