@@ -165,15 +165,8 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
     if(debug){
       print('---------------')
       print(k) # number of iterations
-      print(l_svm_old - l_svm) # loss function improvement, must be positive
-    }
-    
-    # Trying to fix the overshoot 
-    if(l_svm_old - l_svm < 0){
-      v <- (1/2)*(v.prevprev + v.prev)
-      w <- v[2:length(v)]
-      l_svm <- SVMLoss(y, q, lambda, w)
-      print(l_svm_old - l_svm)
+      print(l_svm[1,1])
+      print( ((l_svm_old - l_svm)/l_svm_old)[1,1]) # loss function improvement, must be positive
     }
   }
   
@@ -185,7 +178,7 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
 ########################################################## Defining Diagnostics
 
 F1Score <- function(y, yhat){
-  TP <- sum(y[y == 1] == yhat[yhat == 1])
+  TP <- sum(yhat[y == 1] == 1)
   P <- sum(y[y == 1])
   Pstar <- sum(yhat[yhat == 1])
   recall <- TP/P
@@ -195,8 +188,8 @@ F1Score <- function(y, yhat){
 }
   
 hitRate <- function(y, yhat){
-  TP <- sum(y[y == 1] == yhat[yhat == 1])
-  TN <- sum(y[y == -1] == yhat[yhat == -1])
+  TP <- sum(yhat[y == 1] == 1)
+  TN <- sum(yhat[y == -1] == -1)
   n <- length(y)
   hitRate <- (TP + TN)/n
   return(hitRate)
@@ -205,47 +198,69 @@ hitRate <- function(y, yhat){
 ############################################################# Computing results
 
 # Initializing params
-eps <- 1e-25 # stopping criterion for improvement of function
+eps <- 1e-3 # stopping criterion for improvement of function
 lambda <- 15 # lambda parameter
 
-X <- X.train
-y <- y.train
-hinge <- 'absolute'
-debug <- TRUE
+# Initializing results table 1
+resTable <- matrix(nrow = 4, ncol = 2)
+colnames(resTable) <- c("Hit rate", "F1 score")
+rownames(resTable) <- c("Own, abs hinge", "Package, abs hinge", 
+                        "Own, quad hinge", "Package, quad hinge")
 
 # Fitting abs hinge
-resSVMMAJabs <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
-                          hinge = 'absolute', debug = TRUE)
-# These dont work because we need to define a way of predicting 1 or -1 
-ownSVMAbsHitRate <- hitRate(ytest, Xtest%*%resSVMMAJabs) 
-ownSVMAbsF1Score <- F1Score(ytest, Xtest%*%resSVMMAJabs)
+resOwnSVMMAJabs <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
+                          hinge = 'absolute')
+resTable[1,1] <- hitRate(y.test, ifelse(X.test%*%resOwnSVMMAJabs > 0, 1, -1)) 
+resTable[1,2] <- F1Score(y.test, ifelse(X.test%*%resOwnSVMMAJabs > 0, 1, -1))
 
-resPackageSVMMAJabs <- svmmaj(X.train, y.train, lambda = lambda,
+resSVMMAJabs <- svmmaj(X.train, y.train, lambda = lambda,
                               hinge = 'absolute')
+resTable[2,1] <- hitRate(y.test, ifelse(X.test%*%resSVMMAJabs$beta > 0, 1, -1)) 
+resTable[2,2] <- F1Score(y.test, ifelse(X.test%*%resSVMMAJabs$beta > 0, 1, -1))
 
 # Fitting quad hinge
-resSVMMAJquad <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
-                           hinge = 'quadratic', debug = TRUE)
+resOwnSVMMAJquad <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
+                           hinge = 'quadratic')
+resTable[3,1] <- hitRate(y.test, ifelse(X.test%*%resOwnSVMMAJquad > 0, 1, -1)) 
+resTable[3,2] <- F1Score(y.test, ifelse(X.test%*%resOwnSVMMAJquad > 0, 1, -1))
 
-resPackageSVMMAJquad <- svmmaj(X.train, y.train, lambda = lambda,
-                               hinge = 'quadratic')
+resSVMMAJquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic')
+resTable[4,1] <- hitRate(y.test, ifelse(X.test%*%resSVMMAJquad$beta > 0, 1, -1)) 
+resTable[4,2] <- F1Score(y.test, ifelse(X.test%*%resSVMMAJquad$beta > 0, 1, -1))
 
+# Printing table with results
+resTable
+
+# Initializing results table 2
+resTable2 <- matrix(nrow = 4, ncol = 2)
+colnames(resTable2) <- c("Hit rate", "F1 score")
+rownames(resTable2) <- c("RBF abs hinge", "RBF quad hinge", 
+                        "Poly abs hinge", "Poly quad hinge")
 
 # Fitting nonlinear SVM's
 resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                               kernel = rbfdot, kernel.sigma = 1)
+resTable2[1,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1)) 
+resTable2[1,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1))
 
 resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                               kernel = rbfdot, kernel.sigma = 1)
+resTable2[2,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1)) 
+resTable2[2,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1))
 
 resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                        kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                        kernel.offset = 1)
+resTable2[3,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1)) 
+resTable2[3,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFabs$beta > 0, 1, -1))
 
 resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                         kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                         kernel.offset = 1)
+resTable2[4,1] <- hitRate(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1)) 
+resTable2[4,2] <- F1Score(y.test, ifelse(X.test%*%resSVMRBFquad$beta > 0, 1, -1))
 
-
+# Printing table with results
+resTable2
 
 
