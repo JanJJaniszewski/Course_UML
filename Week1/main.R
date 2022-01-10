@@ -5,10 +5,6 @@ pacman::p_load(tidyverse, SVMMaj, vtreat, kernlab)
 ######################################################### Load and prepare data 
 load('Week1/Data/bank.RData')
 
-# Take only a sample of n
-n <- 1000 
-bank <- bank[sample(nrow(bank), n), ]
-
 # dropping weird columns
 bank <- bank %>% select(-c(emp.var.rate, euribor3m))
 
@@ -34,14 +30,30 @@ treatment <- designTreatmentsC(bank,
                                codeRestriction = c('clean', 'lev'))
 bank_prepared <- prepare(treatment, bank)   
 
+# set seed for sampling 
+set.seed(42)
+
+# Define train and test sets
+n <- 1000 # number of obs in train
+trainIndeces <- sample(nrow(bank_prepared), n)
+trainSet <- bank_prepared[trainIndeces,]
+testSet <- bank_prepared[-trainIndeces, ]
+
 # Scale X and add a column with 1's to X
-X <- bank_prepared %>% select(-y) %>% scale
-X <- cbind(1, X) 
+X.train <- trainSet %>% select(-y) %>% scale
+X.train <- cbind(1, X.train)
+
+X.test <- testSet %>% select(-y) %>% scale
+X.test <- cbind(1, X.test)
 
 # Set y to -1 and 1 for negative and positive cases
-y <- bank_prepared %>% pull(y) %>% as.numeric
-y[y == 1] <- -1
-y[y == 2] <- 1
+y.train <- trainSet %>% pull(y) %>% as.numeric
+y.train[y.train == 1] <- -1
+y.train[y.train == 2] <- 1
+
+y.test <- testSet %>% pull(y) %>% as.numeric
+y.test[y.test == 1] <- -1
+y.test[y.test == 2] <- 1
 
 ##################################################### Defining own SVM function
 
@@ -52,17 +64,14 @@ quadSVMLoss <- function(y, q, lambda, w){
 
 quadSVMParams <- function(y, q){
   a <- 1
-  b <- ifelse(y == -1, min(q, -1), max(q, 1))
-  c <- ifelse(y == -1, 
-              ifelse(q <= -1, a - 2*(1 + q) + (1 + q)^2, 1),
-              ifelse(q > 1, a - 2*(1 - q) + (1 - q)^2, 1))
-  params <- list(a,b,c)
-  names(params) <- c("a","b","c")
+  b <- ifelse(y == -1, pmin(q, -1), pmax(q, 1))
+  params <- list(a,b)
+  names(params) <- c("a","b")
   return(params)
 }
   
-quadSVMUpdate <- function(X, A, lambda, P, b){
-  return( solve(t(X) %*% X + lambda * P) %*% t(X) %*% b )
+quadSVMUpdate <- function(X, A, lambda, P, b, Z){
+  return( Z %*% t(X) %*% b )
 }
 
 absSVMLoss <- function(y, q, lambda, w){
@@ -70,15 +79,14 @@ absSVMLoss <- function(y, q, lambda, w){
 }
 
 absSVMParams <- function(y, q){
-  a <- pmax((4 * abs(1 - y * q)), 1e-4) ^ (-1)
+  a <- pmax(4*abs(1 - y * q), 1e-4)^(-1)
   b <- y*(a + 1/4)
-  c <- a + 1/2 + abs(1 - y * q)/4
-  params <- list(a,b,c)
-  names(params) <- c("a","b","c")
+  params <- list(a,b)
+  names(params) <- c("a","b")
   return(params)
 }
 
-absSVMUpdate <- function(X, A, lambda, P, b){
+absSVMUpdate <- function(X, A, lambda, P, b, Z){
   return( solve(t(X) %*% A %*% X + lambda * P, t(X) %*% b) )
 }
 
@@ -100,12 +108,15 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
   
   # Initializing values
   m <- ncol(X) - 1 # Number of columns (excluding the constant column)
-  w <- matrix(0.1, m, 1) # Initial weights
-  constant <- 0 # Initial c
+  w <- matrix(1, m, 1) # Initial weights
+  constant <- 1 # Initial c
   v <- t(cbind(constant, t(w))) # [c, wT]
+  v.prevprev <- v
+  v.prev <- v
   P <- diag(1, m+1)
   P[1,1] <- 0
   q <- X %*% v
+  Z <- solve(t(X) %*% X + lambda * P)
   
   # Defining appropriate functions based on hinge
   if(hinge == 'absolute'){
@@ -121,9 +132,11 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
   # Entering while function
   k <- 0
   l_svm <- SVMLoss(y, q, lambda, w)
-  l_svm_old <- l_svm + l_svm * eps + 1
   
-  while(((l_svm_old - l_svm) / l_svm_old) > eps){
+  while( k == 0 || ((l_svm_old - l_svm)/l_svm_old) > eps ){
+    # BUG: This terminates because l_svm increases after some point which 
+    # shouldn't happen.
+    
     # Update number of iterations
     k = k+1
     
@@ -134,25 +147,33 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
     q <- X %*% v
     
     # Compute a, b, c, A
-    params <- SVMParams(y,q)
+    params <- SVMParams(y, q)
     a <- params$a
     b <- params$b
-    c <- params$c
     A <- diag(x = a %>% as.vector, n, n)
+    
+    # Update v based on hinge
+    v.prevprev <- v.prev
+    v.prev <- v
+    v <- SVMUpdate(X, A, lambda, P, b, Z)
+    w <- v[2:length(v)]
     
     # compute the new loss
     l_svm <- SVMLoss(y, q, lambda, w)
-    
-    # Update v based on hinge
-    v <- SVMUpdate(X, A, lambda, P, b)
-    constant <- v[1]
-    w <- v[2:length(v)]
     
     # Print update information for debugging
     if(debug){
       print('---------------')
       print(k) # number of iterations
-      print(l_svm[1,1]) # loss function value
+      print(l_svm_old - l_svm) # loss function improvement, must be positive
+    }
+    
+    # Trying to fix the overshoot 
+    if(l_svm_old - l_svm < 0){
+      v <- (1/2)*(v.prevprev + v.prev)
+      w <- v[2:length(v)]
+      l_svm <- SVMLoss(y, q, lambda, w)
+      print(l_svm_old - l_svm)
     }
   }
   
@@ -161,38 +182,70 @@ ownSVMMAJ <- function(X, y, lambda, eps, hinge, debug = FALSE){
   return(v)
 }
 
+########################################################## Defining Diagnostics
+
+F1Score <- function(y, yhat){
+  TP <- sum(y[y == 1] == yhat[yhat == 1])
+  P <- sum(y[y == 1])
+  Pstar <- sum(yhat[yhat == 1])
+  recall <- TP/P
+  precision <- TP/Pstar
+  f1 <- 2*precision*recall/(precision + recall)
+  return(f1)
+}
+  
+hitRate <- function(y, yhat){
+  TP <- sum(y[y == 1] == yhat[yhat == 1])
+  TN <- sum(y[y == -1] == yhat[yhat == -1])
+  n <- length(y)
+  hitRate <- (TP + TN)/n
+  return(hitRate)
+}
+
 ############################################################# Computing results
 
 # Initializing params
-set.seed(42)
-eps <- 1e-15 # Stopping criterion for improvement of function
-lambda <- 15 # Lambda (parameter)
+eps <- 1e-25 # stopping criterion for improvement of function
+lambda <- 15 # lambda parameter
+
+X <- X.train
+y <- y.train
+hinge <- 'absolute'
+debug <- TRUE
 
 # Fitting abs hinge
-resSVMMAJabs <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'absolute')
-resPackageSVMMAJabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute')
-resPackageSVMMAJabs$beta - resSVMMAJabs
+resSVMMAJabs <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
+                          hinge = 'absolute', debug = TRUE)
+# These dont work because we need to define a way of predicting 1 or -1 
+ownSVMAbsHitRate <- hitRate(ytest, Xtest%*%resSVMMAJabs) 
+ownSVMAbsF1Score <- F1Score(ytest, Xtest%*%resSVMMAJabs)
+
+resPackageSVMMAJabs <- svmmaj(X.train, y.train, lambda = lambda,
+                              hinge = 'absolute')
 
 # Fitting quad hinge
-resSVMMAJquad <- ownSVMMAJ(X, y, lambda = lambda, eps, hinge = 'quadratic')
-resPackageSVMMAJquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic')
+resSVMMAJquad <- ownSVMMAJ(X.train, y.train, lambda = lambda, eps,
+                           hinge = 'quadratic', debug = TRUE)
+
+resPackageSVMMAJquad <- svmmaj(X.train, y.train, lambda = lambda,
+                               hinge = 'quadratic')
 
 
 # Fitting nonlinear SVM's
-resSVMRBFabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute', 
+resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                               kernel = rbfdot, kernel.sigma = 1)
 
-resSVMRBFquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic', 
+resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                               kernel = rbfdot, kernel.sigma = 1)
 
-resSVMRBFabs <- svmmaj(X, y, lambda = lambda, hinge = 'absolute', 
+resSVMRBFabs <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'absolute', 
                        kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                        kernel.offset = 1)
 
-resSVMRBFquad <- svmmaj(X, y, lambda = lambda, hinge = 'quadratic', 
+resSVMRBFquad <- svmmaj(X.train, y.train, lambda = lambda, hinge = 'quadratic', 
                         kernel = polydot, kernel.scale = 1, kernel.degree = 1, 
                         kernel.offset = 1)
 
-# Comparing results
+
 
 
