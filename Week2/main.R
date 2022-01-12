@@ -39,13 +39,13 @@ y.test <- testSet %>% pull(is_cancelled) %>% as.numeric %>% replace(.==1, -1) %>
 #### AdaBoost ####
 
 ##### Init #####
-train_ada <- function(X, y, M=10, classifier_method='rpart', verbose=0){
+give_ada_booster <- function(X, y, M=10, classifier_method='rpart', verbose=0){
   w <- rep(1/nrow(X.train), nrow(X.train))
   G <- list()
   M <- seq(1, M)
   alpha <- list()
   
-  if(verbose > 0) print('Ada starts her training')
+  if(verbose >= 1) print('Ada gets boosted')
   for (m in M){
     G[[m]] <- train(x = X, y=y, method = classifier_method, weights = w)
     preds_Gm <- sign(predict(G[[m]], X))
@@ -53,7 +53,7 @@ train_ada <- function(X, y, M=10, classifier_method='rpart', verbose=0){
     alpha[[m]] <- log((1 - err_m) / err_m)
     w <-  (w * exp(alpha[[m]] * (y != preds_Gm))) %>% normalize
     
-    if (verbose>0){
+    if (verbose>=2){
       print('------------')
       print(m)
       print(alpha[[m]])
@@ -65,16 +65,16 @@ train_ada <- function(X, y, M=10, classifier_method='rpart', verbose=0){
   return(ada)
 }
 
-ada <- train_ada(X.train, y.train, M=2, classifier_method = 'rpart', verbose=1)
+ada <- give_ada_booster(X.train, y.train, M=30, classifier_method = 'rpart', verbose=2)
 
-ask_ada_to_predict <- function(X, ada, verbose=0){
+ask_boosted_ada_to_predict <- function(X, ada, verbose=0){
   M <- ada$alpha %>% length
   M <- seq(1, M)
   alpha <- ada$alpha
   G <- ada$G
   preds <- data.frame(row.names = seq(1, nrow(X)))
   
-  if(verbose > 0) print('Ada starts to predict')
+  if(verbose >= 1) print('Ada uses her incredible booster powers to predict outcomes')
   for(m in M){
     preds[m] <- alpha[[m]] * predict(G[[m]], X)
     
@@ -84,5 +84,5 @@ ask_ada_to_predict <- function(X, ada, verbose=0){
   return(preds_final)
 }
 
-preds <- ask_ada_to_predict(X=X.test, ada=ada)
+preds <- ask_boosted_ada_to_predict(X=X.test, ada=ada)
 confusionMatrix(preds %>% as.factor, y.test %>% as.factor)
