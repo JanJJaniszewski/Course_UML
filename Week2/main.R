@@ -55,8 +55,14 @@ give_ada_booster <- function(X, y, M=10, classifier_method='rpart', verbose=0){
     
     if (verbose>=2){
       print('------------')
+      print('Run')
       print(m)
+      print('SD(w)')
+      print(sd(w))
+      print('Alpha')
       print(alpha[[m]])
+      print('Error')
+      print(err_m)
     }
   }
   ada <- list()
