@@ -5,54 +5,86 @@ pacman::p_load(tidyverse, gbm, vtreat, kernlab, caret, rpart)
 
 ######################################################### Load and prepare data 
 load("~/GitHub/Course_UML/Week2/bookings.RData")
-adaboost_own <- function(df, X, y, formula,iteration, maxdepth=4){
+
+##### Analyze #####
+bookings %>% group_by(is_cancelled) %>% summarise_all(mean) %>% head()
+
+##### Prepare #####
+# Define train and test sets
+n <- (0.75 * nrow(bookings)) %>% round()
+trainIndeces <- sample(nrow(bookings), n)
+trainSet <- bookings[trainIndeces,]
+testSet <- bookings[-trainIndeces, ]
+
+treatment <- designTreatmentsC(trainSet,
+                               colnames(trainSet),
+                               'is_cancelled',
+                               'yes', 
+                               codeRestriction = c('clean', 'lev'))
+trainSet <- prepare(treatment, trainSet)  
+testSet <- prepare(treatment, testSet)
+
+# Scale X and add a column with 1's to X
+X.train <- trainSet %>% select(-is_cancelled) %>% scale %>% as_tibble
+X.test <- testSet %>% select(-is_cancelled) %>% scale%>% as_tibble
+
+# Set y to -1 and 1 for negative and positive cases
+y.train <- trainSet %>% pull(is_cancelled) %>% as.numeric %>% replace(.==1, -1) %>% replace(.==2, 1)
+y.test <- testSet %>% pull(is_cancelled) %>% as.numeric %>% replace(.==1, -1) %>% replace(.==2, 1)
+
+######################################################## Build adaboost
+adaboost_own <- function(X, y, formula, iteration, maxdepth=4){
+  formula = y.train ~ (X.train[colnames(X.train)] %>% data.frame)
   #set initial value of the weight
-  n <- nrow(df)
-  weight <<- rep(1/n,n)
+  n <- nrow(X)
+  vWeight <- rep(1/n,n)
   
   #make an array to storage the alpha 
-  alpha_list <- c()
+  vAlpha_list <- c()
   
   #make a list to storage the classifier fitting model
-  tree_list <- list()
+  vTree_list <- list()
   
   # create a list to storage the prediction
-  y_predict_list <- list()
+  vY_predict_list <- list()
   
   #into interations
   for (ite in 1:iteration){
     # 1 fit classifier with tree
-    tree <- rpart(formula =formula,
-                  data = df,
-                  weights = weight,
+    tree_m <- rpart(formula =formula,
+                  data = X.train,
+                  weights = vWeight,
                   method = "class",
                   control =rpart.control(maxdepth = maxdepth, cp = 0,xval = 0, 
                                          minsplit = 2, minbucket = 1))
-    #append new tree to trees
-    trees <- c(tree_list, tree)
+
+    #append new tree to trees collection
+    vTree_list[[m]] <- tree_m
     
     #collect prediction results for calculating error rate
-    y_predict <- predict(tree, data = bookings_prepared, type = "class")
-    y_predict_list <- c(y_predict_list, y_predict)
+    vY_predict_m <- predict(tree_m, data = X.train, type = "class")
+    vY_predict_list[[m]] <- y_predict_m
     
     # 2 calculate weighted error rate
     error=0
-    index <- as.numeric(y != y_predict)
-    err <- sum(weight * index)
+    index_m <- as.numeric(y != vY_predict_m)
+    err_m <- sum(vWeight * index_m)
     
     # 3 calculate alpha
-    alpha <- log((1 - err)/err)
-    alpha_list <- c(alpha_list, alpha)
+    alpha <- log((1 - err_m)/err_m)
+    vAlpha_list[m] <- alpha_m
                   
     # 4 set weight
-    weight <- weight * exp(alpha * index)
+    vWeight <- vWeight * exp(alpha * index_m)
     
     # 5 normalize the weights to sum to 1
-    weight <- weight / sum(weight)
+    vWeight <- vWeight %>% normalize
   }
   #end the loop and return output
-  result <- list(alpha * y_predict)
-  return(result)
+  vResult <- list()
+  vResult[[m]] <- vAlpha_list[m]*vY_predict_list[[m]]
+  return(vResult)
 }
 
-adaboost_own(df, X, y, is_cancelled ~ ., 20)
+ada_own <-adaboost_own(X.train, y.train, iteration=30)
+
