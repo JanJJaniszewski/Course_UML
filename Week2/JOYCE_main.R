@@ -1,7 +1,7 @@
 
 ################################################################# Load packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, gbm, vtreat, kernlab, caret, rpart)
+pacman::p_load(tidyverse, gbm, vtreat, kernlab, caret, rpart,xgboost,ohenery)
 
 ######################################################### Load and prepare data 
 load("~/GitHub/Course_UML/Week2/bookings.RData")
@@ -34,7 +34,12 @@ y.test <- testSet %>% pull(is_cancelled) %>% as.numeric %>% replace(.==1, -1) %>
 
 ######################################################## Build adaboost
 adaboost_own <- function(X, y, formula, iteration, maxdepth=4){
-  formula = y.train ~ (X.train[colnames(X.train)] %>% data.frame)
+  
+  #set df 
+  df <- cbind(y,X)
+  df <- as.data.frame(df)
+  #give formula 
+  formula <- lm(y~., data = df)
   #set initial value of the weight
   n <- nrow(X)
   vWeight <- rep(1/n,n)
@@ -49,7 +54,7 @@ adaboost_own <- function(X, y, formula, iteration, maxdepth=4){
   vY_predict_list <- list()
   
   #into interations
-  for (ite in 1:iteration){
+  for (m in 1:iteration){
     # 1 fit classifier with tree
     tree_m <- rpart(formula =formula,
                   data = X.train,
@@ -63,7 +68,7 @@ adaboost_own <- function(X, y, formula, iteration, maxdepth=4){
     
     #collect prediction results for calculating error rate
     vY_predict_m <- predict(tree_m, data = X.train, type = "class")
-    vY_predict_list[[m]] <- y_predict_m
+    vY_predict_list[[m]] <- vY_predict_m
     
     # 2 calculate weighted error rate
     error=0
@@ -71,20 +76,20 @@ adaboost_own <- function(X, y, formula, iteration, maxdepth=4){
     err_m <- sum(vWeight * index_m)
     
     # 3 calculate alpha
-    alpha <- log((1 - err_m)/err_m)
+    alpha_m <- log((1 - err_m)/err_m)
     vAlpha_list[m] <- alpha_m
                   
     # 4 set weight
-    vWeight <- vWeight * exp(alpha * index_m)
+    vWeight <- vWeight * exp(alpha_m * index_m)
     
     # 5 normalize the weights to sum to 1
     vWeight <- vWeight %>% normalize
   }
   #end the loop and return output
-  vResult <- list()
-  vResult[[m]] <- vAlpha_list[m]*vY_predict_list[[m]]
-  return(vResult)
+  vResult <- data.frame(row.names = seq(1, nrow(X)))
+  vResult[m] <- vAlpha_list[[m]] * vY_predict_list[[m]]
+  vResult_final <- apply(X = vResult, MARGIN = 1, FUN = sum) %>% sign
+  return(vResult_final)
 }
-
-ada_own <-adaboost_own(X.train, y.train, iteration=30)
+ada_own <-adaboost_own(X=X.train, y=y.train, formula=formula, iteration=30)
 
