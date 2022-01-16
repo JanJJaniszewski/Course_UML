@@ -6,7 +6,7 @@ set.seed(42)
 ##### Own AdaBoost #########################################################
 
 fitAdaBoost <- function(data.train, response.var, n.trees = 100, max.depth = 5,
-                        debug = FALSE){
+                        debug = 0){
   ####################################################################
   # Purpose :
   #   Fit AdaBoost classification algorithm on response.var using data in 
@@ -33,7 +33,6 @@ fitAdaBoost <- function(data.train, response.var, n.trees = 100, max.depth = 5,
   
   # Iterating over all trees
   for (m in 1:n.trees){
-    if(debug){print(m)}
     G[[m]] <- rpart(formula, data.train, weights = w, 
                     control = rpart.control(maxdepth = max.depth, cp = 0, 
                                             xval = 0, minsplit = 2,
@@ -43,6 +42,18 @@ fitAdaBoost <- function(data.train, response.var, n.trees = 100, max.depth = 5,
     err_m <- sum(w * (y != preds_Gm)) / sum(w)
     alpha[[m]] <- log((1 - err_m) / err_m)
     w <- (w * exp(alpha[[m]] * (y != preds_Gm))) %>% normalize
+    if(debug){
+      print('------------')
+      print(m)
+    }
+    if(debug >= 2){
+        print('SD(w)')
+        print(sd(w))
+        print('Alpha')
+        print(alpha[[m]])
+        print('Error')
+        print(err_m)
+    }
   }
   
   # Initializing output
@@ -125,7 +136,7 @@ maxTreeDepth <- 5
 
 ######  Executing own version
 fitAdaBoost.res <- fitAdaBoost(trainSet, response.var, n.trees = n_trees,
-                               max.depth = maxTreeDepth, debug = TRUE)
+                               max.depth = maxTreeDepth, debug = 2)
 predsAdaBoost <- predictAdaBoost(testSet, response.var, fitAdaBoost.res)
 confusionMatrix(predsAdaBoost %>% as.factor, testSet[,response.index] %>%
                   as.factor)
