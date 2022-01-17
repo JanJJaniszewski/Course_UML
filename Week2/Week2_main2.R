@@ -1,6 +1,6 @@
 #### Load packages and init ################################################
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, vtreat, caret, rpart, ohenery, gbm)
+pacman::p_load(tidyverse, vtreat, caret, rpart, ohenery, gbm, pROC)
 set.seed(42)
 
 ##### Own AdaBoost #########################################################
@@ -148,3 +148,13 @@ fit_gbm <- gbm(is_cancelled ~ ., data = trainSet.GBM, n.trees = n_trees,
 pred_gbm <- ifelse(predict(fit_gbm, newdata = testSet.GBM, n.trees = n_trees) > 0.5, 1, 0)
 confusionMatrix(pred_gbm %>% as.factor, testSet.GBM[,response.index] %>%
                   as.factor)
+ROC_own <- roc(testSet[,response.index],predsAdaBoost,
+           smoothed = TRUE,
+           # arguments for ci
+           ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+           # arguments for plot
+           plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+           print.auc=TRUE, show.thres=TRUE)
+sens.ci <- ci.se(ROC)
+plot(sens.ci, type="shape", col="lightblue")
+plot(sens.ci, type="bars")
