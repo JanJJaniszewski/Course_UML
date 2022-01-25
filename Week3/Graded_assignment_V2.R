@@ -10,8 +10,8 @@ load('./Week3/FIFA2017_NL.rdata')
 
 fifa$id <- 1:nrow(fifa)
 fifa_scaled <- fifa %>% select(-c(name, Position, club)) %>% scale
-fifa_imputed <- impute.svd(fifa_scaled, maxiter=1000)$x %>% as_tibble
-names(fifa_imputed) <- names(fifa_scaled)
+imputer <- softImpute(fifa_scaled, rank.max = 33, maxit = 1000)
+fifa_imputed <- complete(fifa_scaled, imputer) %>% as_tibble
 
 ## Summary Statistics
 FW <- subset(fifa, fifa$Position == "FW")
@@ -30,19 +30,31 @@ summaryMid
 summaryDef
 summaryGk
 #### Standard code ####
-model_spc <- SPC(fifa_imputed %>% as.matrix, sumabsv = sqrt(ncol(fifa_imputed)), K=30, center =F , trace = F)
+model_spc <- SPC(fifa_imputed %>% as.matrix, sumabsv = sqrt(ncol(fifa_imputed)), K=2, center =F , trace = F)
 model_pca <- prcomp(fifa_imputed, center = TRUE, scale. = TRUE, rank. = 2)
+
+# Comparison of models
+abs(model_pca$rotation - model_spc$v) %>% ggplot(aes(x=PC1, y=PC2, label=rownames(model_pca$rotation))) + geom_point() + xlab('Delta PC1')+ ylab('Delta PC2')
 
 model_pca %>% autoplot(., data = fifa, colour = 'Position', loadings = F)
 model_pca %>% autoplot(., data = fifa, colour = 'club', loadings = F)
 
+
+
 fviz_eig(model_pca, addlabels = TRUE)
+print(model_pca$rotation[,1])
+print(model_spc$v[,1])
+
+model_pca$rotation %>% ggplot(aes)
+
 var <- get_pca_var(model_pca)
 fviz_pca_var(model_pca, col.var = "black")
 
 fifa_simple <- predict(model_pca) %*% t(model_pca$rotation) %>% as_tibble
 fifa_simple$y <- fifa$Position == 'Gk'
-glm(formula = y~., data=fifa_simple)
+
+model_pca$
+
 
 #### Own function ####
 soft_threshold <- function(vX_t_u,c){
