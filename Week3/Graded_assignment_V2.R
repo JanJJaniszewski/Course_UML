@@ -1,5 +1,5 @@
 library(pacman)
-p_load(PMA, tidyverse, fastDummies, softImpute, vtreat, bcv, ggfortify, factoextram, ggplot2)
+p_load(PMA, tidyverse, fastDummies, softImpute, vtreat, bcv, ggfortify, factoextra, ggplot2, psych,dplyr)
 set.seed(1)
 
 # PLEASE DONT CONFIG YOUR WD BUT USE THE R-PROJECT 
@@ -13,6 +13,22 @@ fifa_scaled <- fifa %>% select(-c(name, Position, club)) %>% scale
 fifa_imputed <- impute.svd(fifa_scaled, maxiter=1000)$x %>% as_tibble
 names(fifa_imputed) <- names(fifa_scaled)
 
+## Summary Statistics
+FW <- subset(fifa, fifa$Position == "FW")
+Mid <- subset(fifa, fifa$Position == "Mid")
+Def <- subset(fifa, fifa$Position == "Def")
+Gk <- subset(fifa, fifa$Position == "Gk")
+
+summaryFifa <- summary(fifa)
+summaryFW <- summary(FW)
+summaryMid <- summary(Mid)
+summaryDef <- summary(Def)
+summaryGk <- summary(Gk)
+
+summaryFW
+summaryMid
+summaryDef
+summaryGk
 #### Standard code ####
 model_spc <- SPC(fifa_imputed %>% as.matrix, sumabsv = sqrt(ncol(fifa_imputed)), K=30, center =F , trace = F)
 model_pca <- prcomp(fifa_imputed, center = TRUE, scale. = TRUE, rank. = 2)
