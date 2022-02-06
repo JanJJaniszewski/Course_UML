@@ -27,7 +27,7 @@ getDissFromSim <- function(mSim){ # right method of slide 16
 }
 
 #diss <- sim2diss(cor_basket, method = "corr")
-mDiss <- getDissFromSim(basket)
+mDissimilarities <- getDissFromSim(basket)
 
 #############################################################
 # (c) write own function to get euclidean distance
@@ -148,25 +148,54 @@ getMDS <- function(mDelta, mX, eps = 10e-6, debug = FALSE){
   return(output)
 }
 
+# Own function results
+iN <- dim(mDissimilarities)[1]
+iP <- 2
+mX0 <- matrix(seq(1:(iN*iP)), nrow = iN, ncol = iP)
+mX.ownMDS <- getMDS(mDissimilarities, mX0, debug = TRUE)
+
+# Configuration plot
+vDim1.ownMDS <- mX.ownMDS$mX[,1]
+vDim2.ownMDS <- mX.ownMDS$mX[,2]
+plot(vDim1.ownMDS, vDim2.ownMDS, main = "Configuration plot: Own SMACOF results", 
+     xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-3,3), 
+     ylim = c(-3,3))
+text(vDim1.ownMDS, vDim2.ownMDS, colnames(basket), cex=0.6, pos=3, col="red")
+
 #############################################################
 # (e) compare results from own function and package
 #############################################################
-# Own function results
-iN <- dim(mDiss)[1]
-iP <- 2
-mX0 <- matrix(seq(1:(iN*iP)), nrow = iN, ncol = iP)
-mX.ownMDS <- getMDS(mDiss, mX0, debug = TRUE)
 
 # Implement package
 # Do ratio MDS with ndim = 2
-mds_ratio <- mds(diss,type="ratio")
-mds_ratio$stress
+mX.packageMDS <- mds(mDissimilarities, type="ratio", ndim = 2)
+mX.packageMDS$stress
 
 #############################################################
 # (f) save initial configuration
 #############################################################
-init <- mds(diss, type="ratio", ndim = 2, itmax = 1)
-my <- my_mds(diss, X = init$conf)
+init <- mds(mDissimilarities, type="ratio", ndim = 2, itmax = 1)
+mX.ownMDS.packageInit <- getMDS(mDelta = mDissimilarities, mX = init$conf, debug = TRUE)
+
+# Configuration plot, own MDS with package init
+vDim1.ownMDS.packageInit <- mX.ownMDS.packageInit$mX[,1]
+vDim2.ownMDS.packageInit <- mX.ownMDS.packageInit$mX[,2]
+plot(vDim1.ownMDS.packageInit, vDim2.ownMDS.packageInit, 
+     main = "Configuration plot: Own results", 
+     xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-4,4), 
+     ylim = c(-4,4))
+text(vDim1.ownMDS.packageInit, vDim2.ownMDS.packageInit, colnames(basket),
+     cex=0.6, pos=3, col="red")
+
+# Configuration plot, package MDS
+vDim1.packageMDS <- mX.packageMDS$conf[,1]
+vDim2.packageMDS <- mX.packageMDS$conf[,2]
+plot(vDim1.packageMDS, vDim2.packageMDS, 
+     main = "Configuration plot: Package results", 
+     xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-1,1), 
+     ylim = c(-1,1))
+text(vDim1.packageMDS, vDim2.packageMDS, colnames(basket),
+     cex=0.6, pos=3, col="red")
 
 #############################################################
 # (g) compare plots
