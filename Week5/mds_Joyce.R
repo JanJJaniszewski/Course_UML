@@ -8,66 +8,133 @@ pacman::p_load(knitr,
 #############################################################
 # (b) load data and calculate dissimilarities 
 #############################################################
-load("~/BDS/B3 UML/w5 MDS/basket.Rdata")
+#load("~/BDS/B3 UML/w5 MDS/basket.Rdata")
+load("~/Desktop/Unsupervised Machine Learning/Course_UML/Week5/basket.Rdata")
 set.seed(2022)
-basket <- as_tibble(basket)
-# Change matrix into dissimilarity
-cor_basket <- cor(basket)
-diss <- sim2diss(cor_basket, method = "corr")
+
+getDissFromSim <- function(mSim){ # right method of slide 16
+  ### Add DocString ###
+  
+  vDimSim <- dim(mSim)
+  mDiss <- matrix(0, nrow = vDimSim[1], ncol = vDimSim[2])
+  for(i in 1:vDimSim[1]){
+    for(j in i:vDimSim[2]){
+      mDiss[i,j] <- as.numeric(log((mSim[i,i]*mSim[j,j])/(mSim[i,j]*mSim[j,i])))
+      mDiss[j,i] <- mDiss[i,j]
+    }  
+  }
+  return(mDiss)
+}
+
+#diss <- sim2diss(cor_basket, method = "corr")
+mDiss <- getDissFromSim(basket)
 
 #############################################################
 # (c) write own function to get euclidean distance
 #############################################################
-# calculate euclidean distance measure
-turn_corr_to_eucl <- function(m_corr){
-  D <- sqrt(2*(1 - m_corr))
-  return(D)
+
+getEuclideanDist <- function(mData){
+  # Calculates the Euclidean distances between the rows of an N x P matrix mData
+  # mEuclideanDist has dimension N x N. 
+  
+  iN <- dim(mData)[1]
+  mEuclideanDist <- matrix(0, nrow = iN, ncol = iN)
+  for(i in 1:iN){
+    for(j in i:iN){
+      squaredDiff <- (mData[i,] - mData[j,])^2
+      mEuclideanDist[i,j] <- sqrt(sum(squaredDiff))
+      mEuclideanDist[j,i] <- mEuclideanDist[i,j]
+    }
+  }
+  return(mEuclideanDist)
 }
-euc_d_basket <- turn_corr_to_eucl(cor_basket)
+
+#euc_d_basket <- turn_corr_to_eucl(cor_basket)
 
 #############################################################
 # (d) program the SMACOF
 #Inputs:
-#  Delta: n*n matrix of dissimilarities
-#  X: n*p matrix
+#  mDelta: N x N matrix of dissimilarities
+#  mX: N x P matrix of initial coordinates
 #Outputs:
 #  (normalized) Stress value of the final configuration
 #############################################################
-# compute without weights
-compute_stress <- function(Delta, X){
+
+getB <- function(mDelta, mX, updating = FALSE){
+  # Computes the B matrix of mX
+  # updating denotes if B matrix of mY or mX is being computed
   
-  # compute sum of squared dissimilarities eta2_delta
-  eta2_delta <- sum(Delta[upper.tri(Delta)]^2)
+  mX.EuclideanDist <- getEuclideanDist(mX)
+  mF <- mDelta * (1/mX.EuclideanDist)
+  mF[mX.EuclideanDist == 0] <- 0
+  mB <- diag(rowSums(mF)) - mF
+  if(updating){
+    mB[mX.EuclideanDist <= 0] <- 0
+  }
   
-  # Step1: compute squared distances
-  eta2 <- nrow(X) * sum(diag(t(X) %*% X))
-  
-  # Step2: compute crossproduct: sum of distances times dissimilarites
-  # compute Bx
-  euclidean <- dist(X, method = "euclidean")
-  mF <- Delta/euclidean
-  # take care of division by zero issues
-  mF[is.na(mF)] <- 0
-  Bx <- diag(rowSums(mF)) - mF
-  # slide 30: construct rho
-  rho <- sum(diag(t(X) %*% Bx %*% X))
-  
-  # compute raw stress
-  sigma_r <- eta2_delta + eta2 - 2*rho
-  # compute normalised stress
-  sigma_n <- sigma_r / eta2_delta
-  
-  return(list(stress = sigma_n, Bx = Bx))
+  return(mB)
 }
 
-my_mds <- function(diss, X = NULL, eps = 1e-6){
+getNormStress <- function(mDelta, mX, mV){
+  # Computes the normalized stress value of mX
   
+  # Step1: eta^2_Delta
+  dEta2Delta <- sum(mDelta[upper.tri(mDelta)]^2)
+  
+  # Step2: eta^2(X)
+  dEta2 <- sum(diag(t(mX) %*% mV %*% mX))
+  
+  # Step3: rho(X)
+  mBX <- getB(mDelta, mX)
+  dRhoX <- sum(diag(t(mX) %*% mBX %*% mX))
+  
+  # compute raw stress
+  dRawStress <- dEta2Delta + dEta2 - 2*dRhoX
+  
+  # compute normalised stress
+  dNormStress <- dRawStress / dEta2Delta
+  
+  return(iNormStress)
+}
+
+getMDS <- function(mDelta, mX, eps = 1e-5){
+  iN <- dim(mDelta)[1]
+  mV <- iN*(diag(iN) - (1/iN)*matrix(1, nrow = iN, ncol = iN))
+  dNormStress <- getNormStress(mDelta, mX, mV) 
+  
+  iK <- 1
+  while(iK == 1 || dNormStressDiff > eps){
+    iK <- iK + 1
     
+    # Updating mY and mBY
+    mY <- mX
+    mY.EuclideanDist <- getEuclideanDist(mY)
+    mBY <- getB(mDelta, mY, updating = TRUE)
+    
+    # Computing Moore Penrose inverse of V
+    mOnes <- matrix(1, nrow = iN, ncol = iN)
+    mV.MPinv <- solve(mV + (1/iN)*mOnes) - (1/iN)*mOnes   
+    
+    # Updating mX
+    mX <- mV.MPinv %*% mBY %*% mY 
+    
+    # Printing stress values
+    dNormStress.Prev <- dNormStress
+    dNormStress <- getNormStress(mDelta, mX, mV) # stress not being updated
+    dNormStressDiff <- dNormStress.Prev - dNormStress
+    print(dNormStress, dNormStressDiff)
+  }
+  
+  return(mX)
 }
 
 #############################################################
 # (e) compare results from own function and package
 #############################################################
+# Own function results
+mX0 <- matrix(1, nrow = dim(mDiss)[1], ncol = 2)
+mX.ownMDS <- getMDS(mDiss, mX0)
+
 # Implement package
 # Do ratio MDS with ndim = 2
 mds_ratio <- mds(diss,type="ratio")
