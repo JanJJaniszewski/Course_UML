@@ -60,47 +60,63 @@ getEuclideanDist <- function(mData){
 #  (normalized) Stress value of the final configuration
 #############################################################
 
-getB <- function(mDelta, mX, updating = FALSE){
+getBX <- function(mDelta, mX){
   # Computes the B matrix of mX
-  # updating denotes if B matrix of mY or mX is being computed
   
   mX.EuclideanDist <- getEuclideanDist(mX)
   mF <- mDelta * (1/mX.EuclideanDist)
-  mF[mX.EuclideanDist == 0] <- 0
-  mB <- diag(rowSums(mF)) - mF
-  if(updating){
-    mB[mX.EuclideanDist <= 0] <- 0
-  }
-  
-  return(mB)
+  mF[mX.EuclideanDist == 0] <- 0 # This values are NA since denominator is 0
+  mBX <- diag(rowSums(mF)) - mF
+  return(mBX)
 }
 
-getNormStress <- function(mDelta, mX, mV){
+getBY <- function(mDelta, mY){
+  # Computes the B matrix of mY
+  
+  mBY <- matrix(0, nrow = iN, ncol = iN)
+  mY.EuclideanDist <- getEuclideanDist(mY)
+  iN <- dim(mY)[1]
+  for(i in 1:(iN-1)){
+    for(j in (i+1):iN){
+      if(mY.EuclideanDist[i,j] > 0){
+        dB <- mDelta[i,j]/mY.EuclideanDist[i,j]
+        vE_i = rep(0,iN)
+        vE_j = rep(0,iN)
+        vE_i[i] = 1
+        vE_j[j] = 1
+        mA <- (vE_i - vE_j) %*% t(vE_i - vE_j)
+        mBY <- mBY + dB*mA
+      }
+    }
+  }
+  return(mBY)
+}
+
+getStress <- function(mDelta, mX, mV, dEta2Delta){
   # Computes the normalized stress value of mX
   
-  # Step1: eta^2_Delta
-  dEta2Delta <- sum(mDelta[upper.tri(mDelta)]^2)
+  # Compute eta^2(X)
+  dEta2 <- sum(diag( t(mX) %*% mV %*% mX ))
   
-  # Step2: eta^2(X)
-  dEta2 <- sum(diag(t(mX) %*% mV %*% mX))
-  
-  # Step3: rho(X)
-  mBX <- getB(mDelta, mX)
+  # Compute rho(X)
+  mBX <- getBX(mDelta, mX)
   dRhoX <- sum(diag(t(mX) %*% mBX %*% mX))
   
-  # compute raw stress
+  # Compute stress
   dRawStress <- dEta2Delta + dEta2 - 2*dRhoX
-  
-  # compute normalised stress
-  dNormStress <- dRawStress / dEta2Delta
-  
-  return(iNormStress)
+
+  return(dRawStress)
 }
 
-getMDS <- function(mDelta, mX, eps = 1e-5){
+getMDS <- function(mDelta, mX, eps = 10e-6, debug = FALSE){
   iN <- dim(mDelta)[1]
   mV <- iN*(diag(iN) - (1/iN)*matrix(1, nrow = iN, ncol = iN))
-  dNormStress <- getNormStress(mDelta, mX, mV) 
+  mOnes <- matrix(1, nrow = iN, ncol = iN)
+  mV.MPinv <- solve(mV + (1/iN)*mOnes) - (1/iN)*mOnes
+  
+  # Initializing Normalized Stress
+  dEta2Delta <- sum(mDelta[upper.tri(mDelta)]^2)
+  dNormStress <- getStress(mDelta, mX, mV, dEta2Delta)/dEta2Delta 
   
   iK <- 1
   while(iK == 1 || dNormStressDiff > eps){
@@ -109,31 +125,37 @@ getMDS <- function(mDelta, mX, eps = 1e-5){
     # Updating mY and mBY
     mY <- mX
     mY.EuclideanDist <- getEuclideanDist(mY)
-    mBY <- getB(mDelta, mY, updating = TRUE)
-    
-    # Computing Moore Penrose inverse of V
-    mOnes <- matrix(1, nrow = iN, ncol = iN)
-    mV.MPinv <- solve(mV + (1/iN)*mOnes) - (1/iN)*mOnes   
+    mBY <- getBY(mDelta, mY)
     
     # Updating mX
-    mX <- mV.MPinv %*% mBY %*% mY 
+    mX = mV.MPinv %*% mBY %*% mY # Moore Penrose approach
     
     # Printing stress values
-    dNormStress.Prev <- dNormStress
-    dNormStress <- getNormStress(mDelta, mX, mV) # stress not being updated
-    dNormStressDiff <- dNormStress.Prev - dNormStress
-    print(dNormStress, dNormStressDiff)
+    dPrevNormStress <- dNormStress
+    dNormStress <- getStress(mDelta, mX, mV, dEta2Delta)/dEta2Delta
+    dNormStressDiff <- dPrevNormStress - dNormStress # should always be >= 0
+    if(debug){
+      if(iK == 2){
+        print("Running Own MDS:")
+      }
+      print(sprintf("Iteration: %i, Normalized stress: %f, Difference: %f",
+                    iK, dNormStress, dNormStressDiff))
+    }
   }
   
-  return(mX)
+  output <- list(dNormStress, mX)
+  names(output) <- c("dNormStress", "mX")
+  return(output)
 }
 
 #############################################################
 # (e) compare results from own function and package
 #############################################################
 # Own function results
-mX0 <- matrix(1, nrow = dim(mDiss)[1], ncol = 2)
-mX.ownMDS <- getMDS(mDiss, mX0)
+iN <- dim(mDiss)[1]
+iP <- 2
+mX0 <- matrix(seq(1:(iN*iP)), nrow = iN, ncol = iP)
+mX.ownMDS <- getMDS(mDiss, mX0, debug = TRUE)
 
 # Implement package
 # Do ratio MDS with ndim = 2
