@@ -53,15 +53,15 @@ getEuclideanDist <- function(mData){
 
 #############################################################
 # (d) program the SMACOF
-#Inputs:
-#  mDelta: N x N matrix of dissimilarities
-#  mX: N x P matrix of initial coordinates
-#Outputs:
-#  (normalized) Stress value of the final configuration
 #############################################################
 
 getBX <- function(mDelta, mX){
-  # Computes the B matrix of mX
+  # Computes the mBX matrix
+  #Inputs:
+  #  mDelta: N x N matrix of dissimilarities
+  #  mX: N x P matrix of initial coordinates
+  #Outputs:
+  #  mBX
   
   mX.EuclideanDist <- getEuclideanDist(mX)
   mF <- mDelta * (1/mX.EuclideanDist)
@@ -71,7 +71,12 @@ getBX <- function(mDelta, mX){
 }
 
 getBY <- function(mDelta, mY){
-  # Computes the B matrix of mY
+  # Computes the mBY matrix
+  #Inputs:
+  #  mDelta: N x N matrix of dissimilarities
+  #  mX: N x P matrix of initial coordinates
+  #Outputs:
+  #  mBY
   
   mBY <- matrix(0, nrow = iN, ncol = iN)
   mY.EuclideanDist <- getEuclideanDist(mY)
@@ -93,7 +98,12 @@ getBY <- function(mDelta, mY){
 }
 
 getStress <- function(mDelta, mX, mV, dEta2Delta){
-  # Computes the normalized stress value of mX
+  # Computes the raw stress value of mX
+  #Inputs:
+  #  mDelta: N x N matrix of dissimilarities
+  #  mX: N x P matrix of initial coordinates
+  #Outputs:
+  #  dRawStress
   
   # Compute eta^2(X)
   dEta2 <- sum(diag( t(mX) %*% mV %*% mX ))
@@ -109,6 +119,15 @@ getStress <- function(mDelta, mX, mV, dEta2Delta){
 }
 
 getMDS <- function(mDelta, mX, eps = 10e-6, debug = FALSE){
+  # Returns the MDS approximation of the dissimilarity matrix mDelta, starting
+  #  at the provided mX. 
+  #Inputs:
+  #  mDelta: N x N matrix of dissimilarities
+  #  mX: N x P matrix of initial coordinates
+  #Outputs:
+  #  dNormStress 
+  #  mX: 
+  
   iN <- dim(mDelta)[1]
   mV <- iN*(diag(iN) - (1/iN)*matrix(1, nrow = iN, ncol = iN))
   mOnes <- matrix(1, nrow = iN, ncol = iN)
@@ -163,42 +182,96 @@ plot(vDim1.ownMDS, vDim2.ownMDS, main = "Configuration plot: Own SMACOF results"
 text(vDim1.ownMDS, vDim2.ownMDS, colnames(basket), cex=0.6, pos=3, col="red")
 
 #############################################################
-# (e) compare results from own function and package
+# (e) compare own function with package function
+#############################################################
+
+
+
+#############################################################
+# (f) save initial configuration
 #############################################################
 
 # Implement package
 # Do ratio MDS with ndim = 2
 mX.packageMDS <- mds(mDissimilarities, type="ratio", ndim = 2)
-mX.packageMDS$stress
 
-#############################################################
-# (f) save initial configuration
-#############################################################
+# Own MDS results with package initialization 
 init <- mds(mDissimilarities, type="ratio", ndim = 2, itmax = 1)
 mX.ownMDS.packageInit <- getMDS(mDelta = mDissimilarities, mX = init$conf, debug = TRUE)
+
+#############################################################
+# (g) compare plots
+#############################################################
 
 # Configuration plot, own MDS with package init
 vDim1.ownMDS.packageInit <- mX.ownMDS.packageInit$mX[,1]
 vDim2.ownMDS.packageInit <- mX.ownMDS.packageInit$mX[,2]
 plot(vDim1.ownMDS.packageInit, vDim2.ownMDS.packageInit, 
-     main = "Configuration plot: Own results", 
+     main = "Configuration plot: Own ratio MDS results", 
      xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-4,4), 
      ylim = c(-4,4))
 text(vDim1.ownMDS.packageInit, vDim2.ownMDS.packageInit, colnames(basket),
      cex=0.6, pos=3, col="red")
 
+# Shepard plot, own MDS with package init
+vOwnConfigDistances <- as.vector(getEuclideanDist(mX.ownMDS.packageInit$mX))
+vDissimilarities <- as.vector(mDissimilarities)
+plot(vDissimilarities, vOwnConfigDistances, 
+     main = "Shepard Plot: Own ratio MDS results", 
+     xlab = "Dissimilarities", ylab = "Configuration Distances", pch = 18, 
+     col = "blue", xlim = c(0,7), ylim = c(0,6))
+
 # Configuration plot, package MDS
 vDim1.packageMDS <- mX.packageMDS$conf[,1]
 vDim2.packageMDS <- mX.packageMDS$conf[,2]
 plot(vDim1.packageMDS, vDim2.packageMDS, 
-     main = "Configuration plot: Package results", 
+     main = "Configuration plot: Package ratio MDS results", 
      xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-1,1), 
      ylim = c(-1,1))
 text(vDim1.packageMDS, vDim2.packageMDS, colnames(basket),
      cex=0.6, pos=3, col="red")
 
+# Shepard plot, package MDS 
+vPackageConfigDistances <- as.vector(getEuclideanDist(mX.packageMDS$conf))
+plot(vDissimilarities, vPackageConfigDistances,
+     main = "Shepard Plot: Package ratio MDS results", 
+     xlab = "Dissimilarities", ylab = "Configuration Distances", pch = 18, 
+     col = "blue", xlim = c(0,6), ylim = c(0,3))
+
 #############################################################
-# (g) compare plots
+# (h) MDS with ordinal transformation
 #############################################################
-plot(mds_ratio)
-plot(my)
+
+mX.packageOrdinalMDS <- mds(mDissimilarities, type="ordinal", ndim = 2)
+
+# Configuration plot, package ordinal MDS
+vDim1.packageOrdinalMDS <- mX.packageOrdinalMDS$conf[,1]
+vDim2.packageOrdinalMDS <- mX.packageOrdinalMDS$conf[,2]
+plot(vDim1.packageOrdinalMDS, vDim2.packageOrdinalMDS, 
+     main = "Configuration plot: Package ordinal MDS results", 
+     xlab = "Dim 1", ylab = "Dim 2", pch = 18, col = "blue", xlim = c(-1,1), 
+     ylim = c(-1,1))
+text(vDim1.packageOrdinalMDS, vDim2.packageOrdinalMDS, colnames(basket),
+     cex=0.6, pos=3, col="red")
+
+# Kruskal's rule of thumb (only applicable to ordinal MDS) and elbow rule
+vStressVals <- rep(0,iN-1)
+for(i in 1:length(vStressVals)){
+  vStressVals[i] <- mds(mDissimilarities, type="ordinal", ndim = i)$stress
+}
+
+plot(seq(1,iN-1), vStressVals, xlab = "Dimensionality", ylab = "Stress", 
+     pch = 18, col = "blue", xlim = c(1,iN-1), ylim = c(0,0.25))
+
+# According to Kruskal's rule of thumb 2 dim is fair, 3 is approx good and 4 is 
+# already excellent. By the elbow rule 3 dim seems optimal. 
+
+# Shepard plot, own MDS with package init
+vPackageOrdConfigDistances <- as.vector(getEuclideanDist(mX.packageOrdinalMDS$conf))
+plot(vDissimilarities, vPackageOrdConfigDistances,
+     main = "Shepard Plot: Package ordinal MDS results", 
+     xlab = "Dissimilarities", ylab = "Configuration Distances", pch = 18, 
+     col = "blue", xlim = c(0,3), ylim = c(0,6))
+
+
+
