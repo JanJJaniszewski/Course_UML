@@ -22,6 +22,10 @@ predictions %>% ggplot(aes(x=pc1, y=pc2, color=position)) + geom_point() + xlim(
 
 # Classical PCA predictions
 model_pca <- prcomp(fifa_imputed, center = TRUE, scale. = TRUE, rank. = 2)
+see <- stargazer(as.data.frame(model_pca["rotation"]),summary =F )
+
+checkPC1 <- as.data.frame(model_pca["rotation"]) %>% arrange(rotation.PC1)
+checkPC2 <- as.data.frame(model_pca["rotation"]) %>% arrange(rotation.PC2)
 
 
 fviz_eig(model_pca, addlabels = TRUE)
