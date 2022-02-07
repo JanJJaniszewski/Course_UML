@@ -23,8 +23,7 @@ predictions %>% ggplot(aes(x=pc1, y=pc2, color=position)) + geom_point() + xlim(
 # Classical PCA predictions
 model_pca <- prcomp(fifa_imputed, center = TRUE, scale. = TRUE, rank. = 2)
 
-# update unobserved Xs
-# the first M principal component loading vectors provide the best M -dimensional approximation (in terms of Euclidean distance) to the ith observation xij. 
+
 fviz_eig(model_pca, addlabels = TRUE)
 
 # Comparison of models
@@ -43,7 +42,6 @@ fifa_output$PC1 <- as.matrix(fifa_imputed) %*% model_pca$rotation[,1]
 fifa_output$PC2 <- as.matrix(fifa_imputed) %*% model_pca$rotation[,2]
 fifa_output$goalkeeper <- fifa$Position == 'Gk'
 fifa_output$position <- fifa$Position
-
 
 fifa_output %>% group_by(position) %>% summarise(PC1=mean(PC1), PC2=mean(PC2))
 
